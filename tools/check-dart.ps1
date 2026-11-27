@@ -66,7 +66,7 @@ function Read-TradeRows($zipPath, $receipt) {
             $xml.XmlResolver = $null
             $xml.Load($stream)
         } finally { $stream.Dispose() }
-        $rows = $xml.SelectNodes('//BODY//TABLE-GROUP[@ACLASS="RPT_RSN"]//TR[*[@AUNIT="RPT_RSN"]]')
+        $rows = $xml.SelectNodes('//BODY//TABLE-GROUP[@ACLASS="RPT_RSN"]//TR[not(ancestor::CORRECTION) and *[@AUNIT="RPT_RSN"]]')
         if ($rows.Count -eq 0) { throw 'No structured trade rows found in report body.' }
         foreach ($row in $rows) {
             $fields = @{}
@@ -76,7 +76,7 @@ function Read-TradeRows($zipPath, $receipt) {
                 $fields[$id] = $cell.InnerText -replace '\s',''
             }
             if ($fields.STR_KND -ne '보통주') { continue }
-            $price = $fields.ACI_AMT2 -replace '[,\s]','' -replace '\(원\)|원|\(\)$',''
+            $price = $fields.ACI_AMT2 -replace '[,\s]','' -replace '(?:\(원\)|원|\(\))$',''
             [pscustomobject]@{Date=$fields.MDF_DM -replace '\D',''; Reason=$fields.RPT_RSN;
                 Quantity=$fields.MDF_STK_CNT -replace '[,+]',''; Price=$price; Note=$fields.RMK}
         }

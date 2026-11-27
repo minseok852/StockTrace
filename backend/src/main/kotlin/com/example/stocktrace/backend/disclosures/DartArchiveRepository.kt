@@ -90,7 +90,7 @@ private fun Element?.date() = this?.getAttribute("AUNITVALUE")?.takeIf { it.matc
 private fun transaction(rowNo: Int, cells: Map<String, Element>): Transaction {
     val reason = cells["RPT_RSN"].value().orEmpty().removeSuffix("(+)").removeSuffix("(-)").trim()
     val price = cells["ACI_AMT2"].value()?.replace(Regex("[,\\s]"), "")
-        ?.removeSuffix("(원)")?.removeSuffix("()")?.toBigDecimalOrNull()
+        ?.replace(Regex("(?:\\(원\\)|원|\\(\\))$"), "")?.toBigDecimalOrNull()
     val status = when {
         reason !in setOf("장내매수", "장내매도") -> "INELIGIBLE_REASON"
         price == null || price <= BigDecimal.ZERO -> "NO_UNIT_PRICE"
