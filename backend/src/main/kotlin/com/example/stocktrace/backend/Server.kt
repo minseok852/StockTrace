@@ -1,6 +1,7 @@
 package com.example.stocktrace.backend
 
 import com.example.stocktrace.backend.disclosures.*
+import com.example.stocktrace.backend.insiders.InsiderTrades
 import com.google.gson.GsonBuilder
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -20,28 +21,36 @@ fun main(args: Array<String>) {
     if (args.contentEquals(arrayOf("collect"))) return collectDisclosures(archiveDirectory)
     if (args.contentEquals(arrayOf("collect-windows"))) return collectDisclosures(archiveDirectory, windowsHttp = true)
     require(args.isEmpty()) { "지원하는 명령은 collect, collect-windows입니다." }
-    val repository = DartArchiveRepository(archiveDirectory)
-    val index = DisclosureList()
-    readSnapshot(archiveDirectory)?.let(index::publish)
     val port = System.getenv("PORT")?.toInt() ?: 8080
-    val server = HttpServer.create(InetSocketAddress("127.0.0.1", port), 0)
-    server.executor = Executors.newVirtualThreadPerTaskExecutor()
-    server.createContext("/") { exchange -> exchange.use { serve(it, repository, index) } }
+    val server = createServer(archiveDirectory, port)
     server.start()
     println("StockTrace API http://127.0.0.1:" + server.address.port)
 }
 
-internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, index: DisclosureList) {
+internal fun createServer(archiveDirectory: Path, port: Int, stockSummary: ((String) -> Any?)? = null): HttpServer {
+    val repository = DartArchiveRepository(archiveDirectory)
+    val index = DisclosureList()
+    val snapshot = readSnapshot(archiveDirectory)
+    snapshot?.let(index::publish)
+    val trades = InsiderTrades(snapshot, repository, stockSummary)
+    val server = HttpServer.create(InetSocketAddress("127.0.0.1", port), 0)
+    server.executor = Executors.newVirtualThreadPerTaskExecutor()
+    server.createContext("/") { exchange -> exchange.use { serve(it, repository, index, trades) } }
+    return server
+}
+
+internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, index: DisclosureList, trades: InsiderTrades) {
     val path = exchange.requestURI.path
     val listing = path == DISCLOSURES.removeSuffix("/")
-    if (!listing && (!path.startsWith(DISCLOSURES) || '/' in path.removePrefix(DISCLOSURES))) {
+    val insider = path == "/api/v1/insider-trades" || path == "/api/v1/insider-trades/rankings"
+    if (!listing && !insider && (!path.startsWith(DISCLOSURES) || '/' in path.removePrefix(DISCLOSURES))) {
         return exchange.error(404, "NOT_FOUND", "요청 경로를 찾을 수 없습니다.")
     }
     if (exchange.requestMethod != "GET") {
         exchange.responseHeaders.set("Allow", "GET")
         return exchange.error(405, "METHOD_NOT_ALLOWED", "GET 요청을 사용해 주세요.")
     }
-    if (listing) {
+    if (listing || insider) {
         val page = try {
             val params = mutableMapOf<String,String>()
             exchange.requestURI.rawQuery?.takeIf { it.isNotEmpty() }?.split('&')?.forEach { pair ->
@@ -49,7 +58,8 @@ internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, in
                 val value = URLDecoder.decode(pair.substringAfter('=', ""), Charsets.UTF_8)
                 require(params.put(name, value) == null)
             }
-            index.page(params, LocalDate.now(seoul))
+            val today = LocalDate.now(seoul)
+            if (insider) trades.page(path.endsWith("/rankings"), params, today) else index.page(params, today)
         } catch (_: IllegalArgumentException) {
             return exchange.error(400, "INVALID_ARGUMENT", "조회 조건을 확인해 주세요.")
         } catch (_: CursorExpired) {

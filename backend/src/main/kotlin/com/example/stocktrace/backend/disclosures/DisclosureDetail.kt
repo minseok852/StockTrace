@@ -15,6 +15,7 @@ data class DisclosureDetail(
     val isCorrection: Boolean,
     val holdings: Holdings,
     val transactions: List<Transaction>?,
+    @Transient internal val executiveKey: String? = null,
 ) {
     val sourceUrl = "https://dart.fss.or.kr/dsaf001/main.do?rcpNo=$receiptNo"
     // The local DART archives do not include the correction chain or daily quotes.

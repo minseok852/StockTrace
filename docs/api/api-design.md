@@ -215,6 +215,8 @@ DART 표본 10건의 대표 행 14개를 대조한 기록과 위의 보유량 �
 
 호출 예로 홈 매수액 순에서 삼성전자를 누르고 순위 응답의 `period.to`가 `2026-11-25`이면 `GET /api/v1/insider-trades?stockCode=005930&days=30&to=2026-11-25&tradeType=BUY&scope=RANKED_EXECUTIVES`로 연다. 종가 기준일은 별도의 `quote.tradingDate`다.
 
+종목·종가 저장소 통합 전 로컬 서버에서는 `GET /insider-trades/rankings`가 `503 SERVICE_UNAVAILABLE`을 반환한다. 거래 행 목록과 `scope=RANKED_EXECUTIVES` 상세는 확보한 공시 원문으로 조회할 수 있다.
+
 검증 예로 덴티스 표본의 매수 두 행이 집계 자격을 충족하면 두 행의 기여액은 `2,000 × 2,365 + 1,200 × 2,480 = 7,706,000원`이고, 동일 임원의 기여 인원은 1명이다. 같은 수집 버전에서 홈 금액과 상세 거래 합계를 대조한다.
 
 ## 7. 국회의원 재산공개

@@ -33,7 +33,9 @@ class DartArchiveRepository(private val directory: Path) {
 
     private fun read(receiptNo: String): DisclosureDetail? {
         require(receiptNo.matches(Regex("[0-9]{14}")))
-        check(Files.isDirectory(directory) && Files.isReadable(directory))
+        if (!Files.isDirectory(directory) || !Files.isReadable(directory)) {
+            throw IOException("공시 원문 저장소를 읽을 수 없습니다.")
+        }
         val archive = try {
             ZipFile(directory.resolve("$receiptNo.zip").toFile())
         } catch (_: NoSuchFileException) {
@@ -107,6 +109,12 @@ private fun parseDetail(receiptNo: String, document: Document): DisclosureDetail
         isCorrection = body.getElementsByTagName("CORRECTION").length > 0,
         holdings = Holdings(previous, current, delta, change),
         transactions = transactions.takeIf { foundTradeTable },
+        executiveKey = if (fields["IFR_TP"].value() in setOf("개인(국내)", "개인(외국)") &&
+            fields["STF_RYN"].value() in setOf("등기임원", "비등기임원")) {
+            val name = fields["IFR_NM"].value()
+            val id = fields["IFR_ID2"].value()
+            if (name != null && id != null && id.matches(Regex("[0-9]{6}"))) "$name/$id" else null
+        } else null,
     )
 }
 
