@@ -1,6 +1,8 @@
 package com.example.stocktrace.backend
 
 import com.example.stocktrace.backend.disclosures.*
+import com.example.stocktrace.backend.market.MarketIndicators
+import com.example.stocktrace.backend.market.MarketSources
 import com.google.gson.GsonBuilder
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -14,6 +16,7 @@ import java.util.UUID
 private const val DISCLOSURES = "/api/v1/disclosures/"
 private val receiptPattern = Regex("[0-9]{14}")
 private val json = GsonBuilder().serializeNulls().create()
+private val market by lazy { MarketIndicators(MarketSources()::read) }
 
 fun main(args: Array<String>) {
     val archiveDirectory = Path.of(System.getenv("DART_ARCHIVE_DIR") ?: "../build/dart-check")
@@ -31,15 +34,26 @@ fun main(args: Array<String>) {
     println("StockTrace API http://127.0.0.1:" + server.address.port)
 }
 
-internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, index: DisclosureList) {
+internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, index: DisclosureList, indicators: () -> MarketIndicators = { market }) {
     val path = exchange.requestURI.path
+    val marketRoute = path == "/api/v1/market/indicators"
     val listing = path == DISCLOSURES.removeSuffix("/")
-    if (!listing && (!path.startsWith(DISCLOSURES) || '/' in path.removePrefix(DISCLOSURES))) {
+    if (!marketRoute && !listing && (!path.startsWith(DISCLOSURES) || '/' in path.removePrefix(DISCLOSURES))) {
         return exchange.error(404, "NOT_FOUND", "요청 경로를 찾을 수 없습니다.")
     }
     if (exchange.requestMethod != "GET") {
         exchange.responseHeaders.set("Allow", "GET")
         return exchange.error(405, "METHOD_NOT_ALLOWED", "GET 요청을 사용해 주세요.")
+    }
+    if (marketRoute) {
+        if (!exchange.requestURI.rawQuery.isNullOrEmpty()) {
+            return exchange.error(400, "INVALID_ARGUMENT", "시장 지표에는 조회 조건이 없습니다.")
+        }
+        val items = indicators().items()
+        if (items.all { it.value == null }) {
+            return exchange.error(503, "SERVICE_UNAVAILABLE", "시장 지표를 조회할 수 없습니다. 잠시 후 다시 시도해 주세요.")
+        }
+        return exchange.respond(200, mapOf("items" to items))
     }
     if (listing) {
         val page = try {
