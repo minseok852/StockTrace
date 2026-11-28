@@ -1,6 +1,8 @@
 package com.example.stocktrace.backend
 
 import com.example.stocktrace.backend.disclosures.*
+import com.example.stocktrace.backend.assembly.ASSEMBLY
+import com.example.stocktrace.backend.assembly.assemblyApi
 import com.google.gson.GsonBuilder
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -33,6 +35,7 @@ fun main(args: Array<String>) {
 
 internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, index: DisclosureList) {
     val path = exchange.requestURI.path
+    if (path.startsWith(ASSEMBLY)) return assemblyApi.serve(exchange)
     val listing = path == DISCLOSURES.removeSuffix("/")
     if (!listing && (!path.startsWith(DISCLOSURES) || '/' in path.removePrefix(DISCLOSURES))) {
         return exchange.error(404, "NOT_FOUND", "요청 경로를 찾을 수 없습니다.")
@@ -74,11 +77,11 @@ internal fun serve(exchange: HttpExchange, repository: DartArchiveRepository, in
     exchange.respond(200, report)
 }
 
-private fun HttpExchange.error(status: Int, code: String, message: String, requestId: String = UUID.randomUUID().toString()) {
+internal fun HttpExchange.error(status: Int, code: String, message: String, requestId: String = UUID.randomUUID().toString()) {
     respond(status, mapOf("code" to code, "message" to message, "requestId" to requestId))
 }
 
-private fun HttpExchange.respond(status: Int, value: Any) {
+internal fun HttpExchange.respond(status: Int, value: Any) {
     val bytes = json.toJson(value).toByteArray(Charsets.UTF_8)
     responseHeaders.set("Content-Type", "application/json; charset=utf-8")
     sendResponseHeaders(status, bytes.size.toLong())
