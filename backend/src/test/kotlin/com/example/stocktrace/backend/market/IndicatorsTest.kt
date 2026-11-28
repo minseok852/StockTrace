@@ -11,6 +11,7 @@ class IndicatorsTest {
     @Test fun selectsLatestExactCompositeWithoutFillingMissingChange() {
         val json = """{"response":{"header":{"resultCode":"00"},"body":{"items":{"item":[
             {"idxNm":"코스피 200","basDt":"20261123","clpr":"400"},
+            {"idxNm":"코스피","clpr":"9999"},
             {"idxNm":"코스피","basDt":"20261120","clpr":"2450"},
             {"idxNm":"코스피","basDt":"20261123","clpr":"2500","fltRt":"0.80"},
             {"idxNm":"코스닥","basDt":"20261123","clpr":"800","vs":"-2","fltRt":"-0.25"}

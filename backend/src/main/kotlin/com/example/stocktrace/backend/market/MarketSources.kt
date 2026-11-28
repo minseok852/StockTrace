@@ -53,7 +53,14 @@ internal fun indexObservation(json: String, name: String, day: LocalDate): Obser
     check(response.getAsJsonObject("header").field("resultCode") in setOf("00", "0000"))
     val rows = response.getAsJsonObject("body").getAsJsonObject("items").getAsJsonArray("item")
     val latest = rows.map { it.asJsonObject }.filter { it.field("idxNm") == name }
-        .map { LocalDate.parse(it.field("basDt"), BASIC_ISO_DATE) to it }
+        .mapNotNull { row ->
+            val rawDate = row.field("basDt") ?: return@mapNotNull null
+            try {
+                LocalDate.parse(rawDate, BASIC_ISO_DATE) to row
+            } catch (_: java.time.format.DateTimeParseException) {
+                null
+            }
+        }
         .filter { it.first <= day }.maxByOrNull { it.first } ?: return null
     val (date, row) = latest
     val close = row.field("clpr")?.toBigDecimalOrNull() ?: return null
