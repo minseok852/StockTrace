@@ -17,9 +17,9 @@
 
 ## 데이터와 구현 범위
 
-국회의원 CSV의 연도별 원출처와 가공 자료 작성자, 기업 공시·시세 공급처는 [외부 데이터·API 출처](./docs/external-sources.md)에 정리했다.
+국회의원 CSV의 연도별 원출처와 가공 자료 작성자, 기업 공시·시세 공급처는 [외부 데이터·API 출처](./docs/api/external-sources.md)에 정리했다.
 
-- Kotlin 서버가 금융위원회 일별 시세와 OpenDART 공시를 수집하고 API 키를 관리한다. [API 설계](./docs/api-design.md)
+- Kotlin 서버가 금융위원회 일별 시세와 OpenDART 공시를 수집하고 API 키를 관리한다. [API 설계](./docs/api/api-design.md)
 - Android가 검색·필터·화면 상태를 처리한다. Room은 로컬 조회, Firebase Authentication과 Firestore는 계정과 관심 목록 동기화를 맡는다.
 - 기업 임원·주요주주 공시를 먼저 구현한다. 정치인 보유 현황은 별도 공개자료와 공개 기준일을 사용하는 2차 기능이다.
 

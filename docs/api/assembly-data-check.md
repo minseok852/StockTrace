@@ -24,7 +24,7 @@
 
 ### 로컬 사용과 갱신
 
-연도별 파일은 [2025년 CSV](./assembly-data/2025-listed-stock-rows.csv)와 [2026년 CSV](./assembly-data/2026-listed-stock-rows.csv)다. UTF-8 BOM CSV이며 공통 열은 `publicYear, referenceDate, publishedOn, sourceRecord, memberName, position, reportedRelationship, reportedListedStocks`다. 마지막 열은 복수 종목, 외국 주식, 0주, 괄호 안 변동량을 그대로 유지한다. 원자료의 직위·증권 분류를 적용한 결과이며 parser가 놓친 신고까지 포함하는지는 미검증이다.
+연도별 파일은 [2025년 CSV](../assembly-data/2025-listed-stock-rows.csv)와 [2026년 CSV](../assembly-data/2026-listed-stock-rows.csv)다. UTF-8 BOM CSV이며 공통 열은 `publicYear, referenceDate, publishedOn, sourceRecord, memberName, position, reportedRelationship, reportedListedStocks`다. 마지막 열은 복수 종목, 외국 주식, 0주, 괄호 안 변동량을 그대로 유지한다. 원자료의 직위·증권 분류를 적용한 결과이며 parser가 놓친 신고까지 포함하는지는 미검증이다.
 
 연도별 CSV를 다시 만들 때는 해당 연도 GitHub 원천 CSV 또는 공개 시트의 상세 탭을 CSV로 내려받아 다음과 같이 실행한다. 매년 새 자료의 헤더, 공개일, 기준일을 먼저 확인한다.
 
