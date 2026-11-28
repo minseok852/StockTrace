@@ -1,7 +1,9 @@
 package com.example.stocktrace.backend.disclosures
 
+import org.w3c.dom.Document
 import org.w3c.dom.Element
-import java.io.InputStream
+import org.xml.sax.SAXParseException
+import org.xml.sax.helpers.DefaultHandler
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.nio.file.Files
@@ -23,16 +25,30 @@ class DartArchiveRepository(private val directory: Path) {
         }
         return archive.use { zip ->
             val entry = checkNotNull(zip.getEntry("$receiptNo.xml"))
-            zip.getInputStream(entry).use { parseDetail(receiptNo, it) }
+            val builder = DocumentBuilderFactory.newInstance().apply {
+                setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+            }.newDocumentBuilder().apply { setErrorHandler(DefaultHandler()) }
+            val document = try {
+                zip.getInputStream(entry).use { builder.parse(it) }
+            } catch (failure: SAXParseException) {
+                // A one-to-one byte mapping keeps the XML declaration and original encoding intact.
+                val original = zip.getInputStream(entry).use { it.readBytes().toString(Charsets.ISO_8859_1) }
+                val repaired = xmlTokens.replace(original) { if (it.value == "&") "&amp;" else it.value }
+                if (repaired == original) throw failure
+                builder.parse(repaired.byteInputStream(Charsets.ISO_8859_1))
+            }
+            parseDetail(receiptNo, document)
         }
     }
 }
 
-private fun parseDetail(receiptNo: String, input: InputStream): DisclosureDetail {
-    val factory = DocumentBuilderFactory.newInstance().apply {
-        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-    }
-    val document = factory.newDocumentBuilder().parse(input)
+// Comments, CDATA and processing instructions can contain literal ampersands.
+private val xmlTokens = Regex(
+    """<!\[CDATA\[.*?]]>|<!--.*?-->|<\?.*?\?>|&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[\da-fA-F]+);)""",
+    RegexOption.DOT_MATCHES_ALL,
+)
+
+private fun parseDetail(receiptNo: String, document: Document): DisclosureDetail {
     val body = document.getElementsByTagName("BODY").item(0) as Element
     val fields = mutableMapOf<String, Element>()
     val transactions = mutableListOf<Transaction>()
