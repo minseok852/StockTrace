@@ -21,8 +21,8 @@
 |---|---|---|
 | 금융감독원 OpenDART · [공시서류 원본](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019003) | 임원·주요주주의 거래 사유, 수량, 주당 단가 | 공시 표본 10건의 대표 행 14개 대조. [검증 기록](./공시-단가-검증.md) |
 | 금융감독원 OpenDART · [고유번호](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019018) · [공시검색](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS001&apiId=2019001) · [임원·주요주주 소유보고](https://opendart.fss.or.kr/guide/detail.do?apiGrpCd=DS004&apiId=2019022) | 발행사와 종목 연결, D002 접수 목록과 보고 수량 수집 | 수집 설계에 반영. 시장 전체 집계 검증 예정 |
-| 금융위원회 · [KRX상장종목정보](https://www.data.go.kr/data/15094775/openapi.do) · [주식시세정보](https://www.data.go.kr/data/15094808/openapi.do) · [지수시세정보](https://www.data.go.kr/data/15094807/openapi.do) | 국내 종목 검색, 최근 30일 종가 차트, 거래량·등락률 순위, 코스피·코스닥 지수 | 선정 완료, 인증 응답 검증 예정 |
-| 한국수출입은행 · [현재환율 API](https://www.data.go.kr/data/3068846/openapi.do) | 홈의 원/달러 매매기준율과 직전 고시일 대비 차이 | 선정 완료, 인증 응답 검증 예정 |
+| 금융위원회 · [KRX상장종목정보](https://www.data.go.kr/data/15094775/openapi.do) · [주식시세정보](https://www.data.go.kr/data/15094808/openapi.do) · [지수시세정보](https://www.data.go.kr/data/15094807/openapi.do) | 국내 종목 검색, 최근 30일 종가 차트, 거래량·등락률 순위, 코스피·코스닥 지수 | 시장 지표는 2026-11-26 인증 응답의 `idxNm` 코스피·코스닥, `clpr`, `vs`, `fltRt`, `basDt`를 로컬 HTTP 응답과 대조했다. 코스피 4711.21(+0.29%), 코스닥 655.71(+0.78%)이었다. |
+| 한국수출입은행 · [현재환율 API](https://www.data.go.kr/data/3068846/openapi.do) | 홈의 원/달러 매매기준율과 직전 고시일 대비 차이 | 인증 응답의 USD 매매기준율은 2026-11-26 1,343.9원, 11-27 1,342.7원이었다. 로컬 HTTP 응답의 기준일 11-27 및 차액 -1.2원과 대조했다. 11-28·29 휴일 조회에서는 빈 배열을 확인했다. |
 | 국회사무처 · [역대 국회의원 인적사항](https://www.data.go.kr/data/79931/linkedData.do) | 의원 식별과 공개 당시 정당 대조 | 연도별 명단 연결 후보 |
 
 요청 경로, 필드 매핑과 오류 처리 기준은 [내부·외부 API 명세](./api-design.md)에 있다.

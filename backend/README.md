@@ -17,6 +17,19 @@ powershell -NoProfile -File .\tools\check-dart.ps1 -All
 Invoke-RestMethod http://127.0.0.1:8080/api/v1/disclosures/20260731000755
 ```
 
+## 시장 지표
+
+서버를 시작하는 프로세스의 환경 변수 `DATA_GO_KR_SERVICE_KEY`에 금융위원회 지수시세정보의 디코딩 키를, `KOREAEXIM_AUTH_KEY`에 한국수출입은행 인증키를 설정한다. 서버는 첫 조회 시 지표를 수집하고 메모리에서 결과를 공유한다. 세 행 모두 정상일 때 한 시간, 일부 또는 전체 실패 시 5분이 지나면 다음 요청에서 다시 수집한다. 서버 재시작 시 보관값은 초기화된다. 지수는 최근 30일 범위에서 종합지수 이름을 정확히 일치시킨다. 환율은 한국 날짜로 오늘부터 14일 전까지 조회해 최근 두 고시값을 찾는다. 비교값만 확인할 수 없으면 차액은 null이다.
+
+```powershell
+.\gradlew.bat -p backend run
+# 다른 창에서 상태와 JSON 확인
+curl.exe -si http://127.0.0.1:8080/api/v1/market/indicators
+curl.exe -si -X POST http://127.0.0.1:8080/api/v1/market/indicators
+```
+
+두 키가 없는 새 프로세스에서 GET은 503, POST는 405다. 공급처 대역으로 정상·부분 실패 응답을 확인하려면 `.\gradlew.bat -p backend test --tests '*backend.market.*'`를 실행한다.
+
 ## 공시 상세
 
 `GET /api/v1/disclosures/{receiptNo}`는 보고서의 직전·이번 보유 수량, 원문 순서의 변동 행과 DART 링크를 반환한다. 정정 보고서는 정정 후 본문을 사용한다. 시세와 정정 이력은 아직 연결 전이므로 `comparisonQuote`와 `latestReceiptNo`는 null이다.
