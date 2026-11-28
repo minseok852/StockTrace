@@ -7,17 +7,22 @@ internal val parties = linkedMapOf(
 internal typealias Fields = Map<String, Any?>
 
 // The owner key identifies the same disclosed person across annual reports.
-internal data class Position(val code: String?, val name: String, val owner: String, val relationship: String)
+internal data class Position(val code: String?, val name: String, val owner: String, val relationship: String) {
+    val identity get() = code?.let { Triple(it, owner, relationship) }
+}
 internal data class Holding(val position: Position, val quantity: Long?)
 internal data class Member(val id: String, val name: String, val party: String?, val holdings: List<Holding>?, val url: String? = null) {
     val status get() = if (holdings == null) "UNLINKED" else "LINKED"
     fun fields(): Fields = mapOf("memberId" to id, "name" to name, "partyId" to party,
         "partyName" to parties[party], "reportStatus" to status)
-    fun positions() = holdings.orEmpty().groupBy { it.position }.mapValues { (_, rows) ->
-        if (rows.any { it.quantity == null }) null else rows.sumOf { it.quantity!! }
+    fun positions(): List<Holding> {
+        val (identified, unresolved) = holdings.orEmpty().partition { it.position.identity != null }
+        return identified.groupBy { it.position.identity }.values.map { rows ->
+            rows.first().copy(quantity = if (rows.any { it.quantity == null }) null else rows.sumOf { it.quantity!! })
+        } + unresolved
     }
-    fun self(code: String) = positions().filterKeys { it.code == code && it.relationship == "SELF" }
-        .values.filterNotNull().sum()
+    fun self(code: String) = holdings.orEmpty().filter { it.position.code == code && it.position.relationship == "SELF" }
+        .sumOf { it.quantity ?: 0L }
 }
 
 internal data class AnnualReport(val year: Int, val referenceDate: String, val mode: String, val members: List<Member>) {
@@ -80,9 +85,16 @@ internal class AssemblyReports(val years: List<AnnualReport>, val stocks: Map<St
         val prior = previous(report)
         val old = prior?.members?.find { it.id == member.id }?.positions().orEmpty()
         val now = member.positions()
-        val items = if (member.holdings == null) emptyList() else (now.keys + old.keys).map { key ->
-            val before = old[key]
-            val current = now[key]
+        val remaining = old.toMutableList()
+        val comparisons = now.map { row ->
+            val match = row.position.identity?.let { id -> remaining.find { it.position.identity == id } }
+            if (match != null) remaining.remove(match)
+            row to match
+        } + remaining.map { null to it }
+        val items = if (member.holdings == null) emptyList() else comparisons.map { (latest, earlier) ->
+            val key = (latest ?: earlier!!).position
+            val before = earlier?.quantity
+            val current = latest?.quantity
             val delta = if (before != null && current != null) current - before else null
             val status = when {
                 delta == null -> "UNKNOWN"

@@ -15,6 +15,32 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AssemblyTest {
+    @Test fun partialHoldingKeepsConfirmedQuantityAndHolder() {
+        val report = assemblyExamples.years.first()
+        val row = report.members.first().holdings!!.first()
+        val member = report.members.first().copy(holdings = listOf(row.copy(quantity = 100), row.copy(quantity = null)))
+        val partial = report.copy(members = listOf(member))
+        assertEquals(100L, partial.totals(null, "005930")["shares"])
+        assertEquals(1, partial.totals(null, "005930")["holderCount"])
+        assertEquals("PARTIAL", partial.coverage(null, "005930"))
+        assertNull(member.positions().single().quantity)
+    }
+
+    @Test fun compareByVerifiedStockAndOwnerAcrossYears() {
+        val before = assemblyExamples.years.last()
+        val member = before.members.first()
+        val row = member.holdings!!.first()
+        val unknown = Holding(row.position.copy(code = null, name = "미확인 종목"), 10)
+        val old = before.copy(members = listOf(member.copy(holdings = listOf(row, unknown))))
+        val renamed = row.copy(position = row.position.copy(name = "변경된 표시명"), quantity = row.quantity!! + 20)
+        val now = member.copy(holdings = listOf(renamed, unknown))
+        val current = old.copy(year = old.year + 1, members = listOf(now))
+        val reports = AssemblyReports(listOf(old, current), assemblyExamples.stocks)
+        val items = reports.detail(current, now)["items"] as List<*>
+        val rows = items.map { it as Map<*, *> }
+        assertEquals(20L, rows.single { it["stockCode"] == "005930" }["deltaShares"])
+        assertTrue(rows.filter { it["stockCode"] == null }.all { it["comparisonStatus"] == "UNKNOWN" })
+    }
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
         val repo = DartArchiveRepository(Path.of("build/unused-assembly-test"))
         val index = DisclosureList()
