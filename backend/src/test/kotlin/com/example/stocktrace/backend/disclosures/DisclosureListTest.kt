@@ -92,6 +92,44 @@ class DisclosureListTest {
         checkCollection("005930", "005930", resets = 4)
     }
 
+    @Test fun malformedDocumentDoesNotBlockNewOrCachedFilings() {
+        val directory = folder.root.toPath()
+        val ids = listOf("20261128000001", "20261128000002", "20261128000003")
+        val reports = ids.joinToString(",") { id ->
+            """{"corp_cls":"Y","rm":"","rcept_no":"$id","rcept_dt":"20261128","stock_code":"005930","corp_code":"00126380","corp_name":"회사","report_nm":"소유보고"}"""
+        }
+        val downloaded = mutableListOf<String>()
+        val request: (String, String) -> ByteArray = { endpoint, query ->
+            when (endpoint) {
+                "corpCode.xml" -> xmlZip("CORPCODE.xml",
+                    "<result><list><corp_code>00126380</corp_code><stock_code>005930</stock_code></list></result>")
+                "list.json" -> if ("end_de=20261128" in query) {
+                    """{"status":"000","page_no":1,"total_page":1,"total_count":3,"list":[$reports]}""".toByteArray()
+                } else """{"status":"013"}""".toByteArray()
+                "document.xml" -> {
+                    val id = query.substringAfter("rcept_no=")
+                    downloaded += id
+                    val xml = if (id == ids[1]) "<DOCUMENT><BODY><SPAN><세부내역 변동 정정표></SPAN></BODY></DOCUMENT>"
+                        else """<DOCUMENT><BODY><TE ACODE="CRP_CD">005930</TE><TE ACODE="CRP_NM">회사</TE>
+                            <TE ACODE="BFR_UN_CNT">10</TE><TE ACODE="AFR_UN_CNT">15</TE></BODY></DOCUMENT>"""
+                    xmlZip("$id.xml", xml)
+                }
+                else -> error(endpoint)
+            }
+        }
+        repeat(2) {
+            collectDisclosures(directory, today, request)
+            val saved = readSnapshot(directory)!!.items.associateBy { item -> item.receiptNo }
+            assertEquals(ids.toSet(), saved.keys)
+            assertEquals(listOf(5L, null, 5L), ids.map { id -> saved.getValue(id).holdingDeltaShares })
+            assertNull(saved.getValue(ids[1]).tradeRowCount)
+            assertEquals("UNKNOWN", saved.getValue(ids[1]).direction)
+            assertEquals(ids, downloaded)
+            // An obsolete index must be replaced even when the bad ZIP is now cached.
+            if (it == 0) Files.delete(directory.resolve("disclosures.json"))
+        }
+    }
+
     private fun xmlZip(name: String, xml: String) = ByteArrayOutputStream().also { bytes ->
             ZipOutputStream(bytes).use { zip ->
                 zip.putNextEntry(ZipEntry(name))

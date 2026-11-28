@@ -2,20 +2,36 @@ package com.example.stocktrace.backend.disclosures
 
 import org.w3c.dom.Document
 import org.w3c.dom.Element
+import org.xml.sax.SAXException
 import org.xml.sax.SAXParseException
 import org.xml.sax.helpers.DefaultHandler
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.time.LocalDate
+import java.time.DateTimeException
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipFile
+import java.util.zip.ZipException
 import javax.xml.parsers.DocumentBuilderFactory
 
+internal class InvalidDartArchive(message: String, cause: Exception? = null) : IOException(message, cause)
+
 class DartArchiveRepository(private val directory: Path) {
-    fun find(receiptNo: String): DisclosureDetail? {
+    fun find(receiptNo: String): DisclosureDetail? = try {
+        read(receiptNo)
+    } catch (failure: SAXException) {
+        throw InvalidDartArchive("원문 XML 구문 오류", failure)
+    } catch (failure: ZipException) {
+        throw InvalidDartArchive("원문 ZIP 형식 오류", failure)
+    } catch (failure: DateTimeException) {
+        throw InvalidDartArchive("원문 날짜 형식 오류", failure)
+    }
+
+    private fun read(receiptNo: String): DisclosureDetail? {
         require(receiptNo.matches(Regex("[0-9]{14}")))
         check(Files.isDirectory(directory) && Files.isReadable(directory))
         val archive = try {
@@ -24,7 +40,7 @@ class DartArchiveRepository(private val directory: Path) {
             return null
         }
         return archive.use { zip ->
-            val entry = checkNotNull(zip.getEntry("$receiptNo.xml"))
+            val entry = zip.getEntry("$receiptNo.xml") ?: throw InvalidDartArchive("접수번호에 해당하는 XML 누락")
             val builder = DocumentBuilderFactory.newInstance().apply {
                 setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             }.newDocumentBuilder().apply { setErrorHandler(DefaultHandler()) }
@@ -49,7 +65,7 @@ private val xmlTokens = Regex(
 )
 
 private fun parseDetail(receiptNo: String, document: Document): DisclosureDetail {
-    val body = document.getElementsByTagName("BODY").item(0) as Element
+    val body = document.getElementsByTagName("BODY").item(0) as? Element ?: throw InvalidDartArchive("BODY 누락")
     val fields = mutableMapOf<String, Element>()
     val transactions = mutableListOf<Transaction>()
     var foundTradeTable = false
@@ -82,8 +98,8 @@ private fun parseDetail(receiptNo: String, document: Document): DisclosureDetail
         receiptNo = receiptNo,
         filedOn = LocalDate.parse(receiptNo.take(8), DateTimeFormatter.BASIC_ISO_DATE).toString(),
         reportAsOf = fields["RPT_REF_DT"].date(),
-        stockCode = checkNotNull(fields["CRP_CD"].value()),
-        companyName = checkNotNull(fields["CRP_NM"].value()),
+        stockCode = fields["CRP_CD"].value() ?: throw InvalidDartArchive("CRP_CD 누락"),
+        companyName = fields["CRP_NM"].value() ?: throw InvalidDartArchive("CRP_NM 누락"),
         reporterName = fields["IFR_NM"].value(),
         relationship = fields["STF_RYN"].value() ?: fields["MAIN_SH"].value(),
         position = fields["STF_PSM"].value(),

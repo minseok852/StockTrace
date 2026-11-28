@@ -20,6 +20,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter.BASIC_ISO_DATE
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipFile
+import java.util.zip.ZipException
 import java.util.zip.ZipInputStream
 import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
@@ -176,7 +177,13 @@ private class OpenDart(val send: (String,String) -> ByteArray) {
         val temp = Files.createTempFile(directory, "archive-", ".tmp")
         try {
             Files.write(temp, bytes)
-            ZipFile(temp.toFile()).use { checkNotNull(it.getEntry("$id.xml")) }
+            try {
+                ZipFile(temp.toFile()).use {
+                    if (it.getEntry("$id.xml") == null) throw InvalidDartArchive("접수번호에 해당하는 XML 누락")
+                }
+            } catch (failure: ZipException) {
+                throw InvalidDartArchive("원문 ZIP 형식 오류", failure)
+            }
             Files.move(temp, destination, ATOMIC_MOVE)
         } finally { Files.deleteIfExists(temp) }
     }
@@ -277,7 +284,21 @@ internal fun collectDisclosures(directory: Path, today: LocalDate, request: (Str
                 }
                 from = to.plusDays(1)
             }
-            val items = effective.mapValues { (id, filing) -> filing.toItem(archive.find(id)) }.toMutableMap()
+            var invalidArchives = 0
+            fun recordInvalid(id: String, failure: InvalidDartArchive) {
+                invalidArchives++
+                System.err.println("원문 해석 보류 $id · ${failure.message}")
+            }
+            fun readItem(filing: Filing): DisclosureItem {
+                val detail = try {
+                    archive.find(filing.id)
+                } catch (failure: InvalidDartArchive) {
+                    recordInvalid(filing.id, failure)
+                    null
+                }
+                return filing.toItem(detail)
+            }
+            val items = effective.mapValues { (_, filing) -> readItem(filing) }.toMutableMap()
             fun publish() = writeSnapshot(directory, DisclosureSnapshot(start.toString(), today.toString(), items.values.toList(), issuers))
             publish()
             println("목록 저장 완료 $start ~ $today · 유효 공시 ${items.size}건")
@@ -287,6 +308,9 @@ internal fun collectDisclosures(directory: Path, today: LocalDate, request: (Str
             for (id in missing) {
                 try {
                     dart.prepareArchive(directory, id)
+                } catch (failure: InvalidDartArchive) {
+                    recordInvalid(id, failure)
+                    continue
                 } catch (failure: DartDownloadFailed) {
                     System.err.println("${failure.message} 이번 원문 수집을 중단합니다.")
                     break
@@ -294,11 +318,12 @@ internal fun collectDisclosures(directory: Path, today: LocalDate, request: (Str
                 if (!Files.isRegularFile(directory.resolve("$id.zip"))) continue
                 remaining--
                 val filing = effective[id] ?: continue
-                items[id] = filing.toItem(archive.find(id))
+                items[id] = readItem(filing)
                 updated = true
             }
             if (updated) publish()
             println("원문 ZIP 확보 ${historyCount - remaining}/${historyCount}건 · 미확보 ${remaining}건 (정정·철회 이력 포함)")
+            println("원문 해석 보류 ${invalidArchives}건")
         }
     }
 }
